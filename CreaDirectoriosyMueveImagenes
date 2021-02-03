@@ -1,0 +1,65 @@
+
+import os
+import pandas as pd
+from PIL import Image
+
+
+
+#abra el csv
+archivo='info6.csv'
+df = pd.read_csv(archivo,sep=';',header=0)
+
+
+df.set_index(df['NombreReferente'], inplace=True) #pasar al indice 
+del df['NombreReferente'] #borrar col
+df.index.rename('NombreReferente', inplace=True) #renombrar indice
+
+
+#crea directorios con los nombres de referentes segun el csv
+for NombreReferente in df.index:
+	print (NombreReferente)
+	# Se define el nombre de la carpeta o directorio a crear
+	directorio = "Referentes/"+NombreReferente
+	try:
+		os.mkdir(directorio)
+	except OSError:
+		print("La creación del directorio %s falló" % directorio)
+	else:
+		print("Se ha creado el directorio: %s " % directorio)
+	
+	directorio2 = "Referentes/"+NombreReferente+'/images'
+	try:
+		os.mkdir(directorio2)
+	except OSError:
+		print("La creación del directorio %s falló" % directorio2)
+	else:
+		print("Se ha creado el directorio: %s " % directorio2)
+		
+		
+#pasa las imagenes a cada una de las carpetas de referentes y las convierte en jpeg si es necesario
+for NombreReferente in df.index:
+	print (NombreReferente)
+	
+	try:
+		shutil.copy('imagesOK/'+NombreReferente+'.jpeg',"Referentes/"+NombreReferente+'/images/foto.jpeg')
+	except:
+		print("Se convirtió la imagen de jpg a jpeg")
+		im = Image.open('imagesOK/'+NombreReferente+'.jpg')
+		rgb_im = im.convert('RGB')
+		rgb_im.save('imagesOK/'+NombreReferente+'.jpeg')
+		shutil.copy('imagesOK/'+NombreReferente+'.jpeg',"Referentes/"+NombreReferente+'/images/foto.jpeg')
+
+archivo='F:/INA/PlantillasJinja/EdicionFotos/fotosjpg.csv'
+df = pd.read_csv(archivo,sep=';',header=0)
+
+
+df.set_index(df['NombreReferente'], inplace=True) #pasar al indice 
+del df['NombreReferente'] #borrar col
+df.index.rename('NombreReferente', inplace=True) #renombrar indice
+
+for NombreReferente in df.index:
+	
+	
+	im = Image.open('imagesOK/'+NombreReferente+'.jpg')
+	rgb_im = im.convert('RGB')
+	rgb_im.save('imagesOK/'NombreReferente+'.jpeg')
