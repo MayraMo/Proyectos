@@ -1,0 +1,68 @@
+
+import pandas as pd
+import pdfkit
+from jinja2 import Environment, FileSystemLoader
+
+
+
+archivo='info6.csv'
+df = pd.read_csv(archivo,sep=';',header=0)
+
+
+df.set_index(df['NombreReferente'], inplace=True) #pasar al indice 
+del df['NombreReferente'] #borrar col
+df.index.rename('NombreReferente', inplace=True) #renombrar indice
+
+for NombreReferente in df.index:
+
+	ruta='Referentes/'+NombreReferente
+	rutapdf='Referentes/'+NombreReferente
+	name=NombreReferente+'.html'
+	print('-------')
+	print(NombreReferente)
+	info=open(archivo, encoding='utf-8')
+	for linea in info:
+		linea = linea.rstrip() #elmina espacios al inicio y al final de la linea
+		
+		if linea.find(NombreReferente) != -1 : #find: si encuentra la expresion devuelve 1, sino -1.
+			palabras = linea.split(sep=';') #guarda la linea en lista de palabras
+			Nombre = palabras[1]
+			Lugar=palabras[2]#guardar datos una listas, por ejemplo secciones=[], previamente creada
+			Aclaraciones1=palabras[3]
+			Aclaraciones2=palabras[4]
+			Lat=palabras[8]
+			if Lat =="-33":
+				Lat= "- "
+				Long= " - "
+			else:
+				Long=palabras[9]
+			
+			print(Lugar)
+			print(Aclaraciones1)
+			print(Aclaraciones2)
+			print(Lat)
+			print(Long)
+			
+			
+
+			env= Environment(loader=FileSystemLoader('base')) #donde dice "template" van las direcciones donde estan los templates de html
+			template =env.get_template('indexV12.html') #aca va el nombre del archivo
+
+
+			#ahora vamos a definir con que vamos a completar el templator
+			usuario={
+				'Referente':Nombre,
+				'lugar':'Lugar: ' +Lugar,
+				'LatLon':'Lat. / Long. : '+ Lat+' / '+Long,
+				'obs':Aclaraciones1,
+				'ImpactoDelEvento': 'Impacto del evento: '+ Aclaraciones2, 
+				'web':'Estudio hidrodinámico integrador del Delta del río Paraná con fines múltiples'
+			}
+			 
+
+			#le asigno a html lo que esta en template
+			html= template.render(usuario,encoding='utf-8')
+			
+			f =open (ruta+'/'+name, 'w')
+			f.write(html)
+			f.close()
