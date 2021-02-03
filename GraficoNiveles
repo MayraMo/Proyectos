@@ -1,0 +1,111 @@
+import pandas as pd
+import datetime
+from datetime import timedelta
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from matplotlib import colors as mcolors
+import matplotlib.font_manager as font_manager
+import matplotlib.image as image
+from os import remove
+import os
+
+
+periodos=['18-niveles']#,'14-niveles','15-niveles']#['06-niveles','07-niveles','08-niveles','09-niveles','10-niveles','11-niveles','12-niveles'] #'01-niveles','02-niveles','03-niveles','04-niveles',
+for REF in periodos: 
+	ciclo=REF
+	
+	#ruta donde ir a buscar los archivos de resultados
+	ruta='F:/INA/1D_ParanaPalmas/PPalmas1D- Basement/calibracionerrores/'+REF+'/'
+
+	#ruta donde dejar los archivos generados
+	rutaB='DatosGenerados/calibracionerrores/'+REF+'/'
+	rutaimagen='F:/INA/1D_ParanaPalmas/1D -Datos y Graficos/Datos externos/imagenes/'
+
+	INFO=ruta+'Info_'+REF+'.txt'
+	DATOS =open(INFO) #es necesario usar el open para abrir el archivo en python
+	#extraer datos de la fila en donde esta 'cross_section->'
+	for linea in DATOS:
+		linea = linea.rstrip() #elmina espacios al inicio y al final de la linea
+		palabras = linea.split() #guarda la linea en lista de palabras
+		
+		if linea.find('Fecha de inicio:	') != -1 : #find: si encuentra la expresion devuelve 1, sino -1.
+			palabras = linea.split() #guarda la linea en lista de palabras
+			fi=palabras[3:]#guardar datos una listas, por ejemplo secciones=[], previamente creada #sacarle las primeras 2 filas y guardar el archivo en un df. 
+			fechainicio=fi[0]+' '+fi[1]
+
+		if linea.find('Fecha de fin:') != -1 : #find: si encuentra la expresion devuelve 1, sino -1.
+			palabras = linea.split() #guarda la linea en lista de palabras
+			ff=palabras[3:]#guardar datos una listas, por eje
+			fechafin=ff[0]+' '+ff[1]
+	
+	NomMes={'1':'Enero','2':'Febrero','3':'Marzo','4':'Abril', '5': 'Mayo','6':'Junio','7':'Julio','8':'Agosto','9':'Septiembre','10':'Octubre','11':'Noviembre','12':'Diciembre'}
+	meses=['1','2','3','4', '5','6','7','8','9','10','11','12']
+	for mes in meses: 	
+	
+		FmuestraI = datetime.datetime(int('2016'),int( mes), 1, 00, 00, 00)
+		FmuestraF=FmuestraI + datetime.timedelta(days=29)
+		
+		print ('-------------------------------')
+		print('Graficando Niveles desde: '+str(FmuestraI)+' hasta '+str(FmuestraF))
+		print ('-------------------------------')
+		print('año: '+ str(ciclo))
+		print('mes: '+NomMes[mes]+'('+str(mes)+')')
+		print ('-------------')
+		
+		archivo=rutaB+'calibracion.txt'
+		dfg = pd.read_csv(archivo,sep=',',header=0)
+		dfg['time']=  pd.to_datetime(dfg['time'])
+		
+		dfg.set_index(dfg['time'], inplace=True)
+		del dfg['time']
+		dfg.index.rename('time', inplace=True)
+			
+		puntos={'917':'Baradero','952':'Zarate','963':'Campana','971':'LasRosas','1373':'Braga','1379':'SanFernando', '891':'891','892':'892','893':'893','894':'894','895':'895', '896':'896'}
+		estaciones=['917','952','963','971','1373','1379','891','892','893','894','895','896']
+		for estacion in estaciones:
+			
+			fig, ax = plt.subplots(figsize=(13.6,6.4))
+
+			im = image.imread(rutaimagen+'Logo_LHA2.png')#lee una imagen
+			ax.figure.figimage(im, 950, 510, alpha=1, zorder=1)
+				
+			print ('Estacion: '+ puntos[estacion])
+			print ('Seccion Basement: '+estacion)
+			print ('------')
+			
+			#ax.plot_date(dfg.index, dfg[puntos[estacion]]-40, label="Observado", color='b', linestyle='--', marker='', markersize=2)
+			ax.plot_date(dfg.index, dfg[estacion]-40, label='simulación', color='darkred', linestyle='-', marker='', markersize=2)
+			
+			# if puntos[estacion] != 'SanFernando':
+				# ax.plot_date(dfg.index, dfg[puntos[estacion]+'Hec'], label="HecRas", color='g', linestyle='--', marker='', markersize=2)
+			
+			font = font_manager.FontProperties(family='Comic Sans MS',weight='bold',style='normal', size=10)
+			ax.set_xlabel(NomMes[mes]+' de prueba'+ciclo+' -  dia y hora [dd HH:mm]', bbox={'facecolor':'gainsboro', 'alpha':0.8},fontname='Comic Sans MS') 
+			ax.set_ylabel('Nivel [m]', bbox={'facecolor':'gainsboro', 'alpha':0.8, 'pad':2},fontname='Comic Sans MS' ) 
+			#ax.set_title(mes+' de '+ciclo) 
+			letra = {'fontname':'Comic Sans MS'}
+			ax.set_xlim([pd.to_datetime(FmuestraI), pd.to_datetime(FmuestraF)])
+			ax.legend(loc='upper right', fontsize=12, title='Sección:'+puntos[estacion], prop=font ) 
+
+			ax.set_xticklabels(dfg.index, rotation = 30)
+			myFmt = mdates.DateFormatter('%d %H:%M')
+			ax.xaxis.set_major_formatter(myFmt)
+			ax.xaxis.grid(linestyle='--')
+			ax.yaxis.grid(linestyle='--')
+			ax.set_axis_bgcolor('gainsboro')
+			plt.tight_layout()
+			
+
+
+		
+
+			rutaimagenproducidas = 'F:/INA/1D_ParanaPalmas/1D -Datos y Graficos/DatosyGraficos/DatosGenerados/calibracionerrores/'+REF+'/'+mes+'_'+NomMes[mes]+'/'
+
+			try:
+			  os.stat(rutaimagenproducidas)
+			except:
+			  os.mkdir(rutaimagenproducidas)	
+			  
+			#rutaimagenproducidas='F:/INA/1D_ParanaPalmas/1D -Datos y Graficos/DatosyGraficos/DatosGenerados/calibracionerrores/'+REF+'/'+mes+'_'+NomMes[mes]+'/'
+			#remove(rutaimagenproducidas+puntos[estacion]+'.jpg')
+			fig.savefig(rutaimagenproducidas+puntos[estacion]+'.jpg',  bbox_inches='tight', dpi=fig.dpi)
