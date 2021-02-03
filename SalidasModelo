@@ -1,0 +1,256 @@
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import datetime
+from datetime import timedelta
+import subprocess
+import re
+
+	#extrae tablas de datos de caracteristicas de cada seccion/ genera un archivo de caracteristicas por seccion.  
+		#estrae Talweg, nombres de secciones y progresiva/genera un archivo con estos datos.
+
+#archivos de salida del modelo
+corrida='18-niveles'	
+
+#ruta donde ir a buscar los archivos de resultados
+ruta='F:/INA/1D_ParanaPalmas/PPalmas1D- Basement/calibracionerrores/'+corrida+'/'
+#ruta donde dejar los archivos generados
+rutaB='DatosGenerados/calibracionerrores/'+corrida+'/'
+rutaC='DatosGenerados/calibracionerrores/'+corrida+'/'
+restaSEG= 7320 #7321 campos 7321-7200 
+
+while restaSEG > 0:
+	#/////////////////////////////////////////////////
+	archivo1=ruta+'SecParanaPalmasV5_tables.dat'
+	#defino variables de uso posterior
+	i=list() #crea una lista vacia
+	f=[] #crea una lista idem list()
+	talweg=[]
+	secciones=list()
+	km=list()
+	contador=0
+
+	#recorre el archivo, busca las expresiones y guarda palabras o numeros de linea.
+	CSgeom =open(archivo1) #es necesario usar el open para abrir el archivo en python
+
+	for linea in CSgeom:
+		contador+=1 
+		linea = linea.rstrip() #elmina espacios al inicio y al final de la linea
+
+		if linea.find('cross-section name:') != -1 : #find: si encuentra la expresion devuelve 1, sino -1.
+			palabras = linea.split() #guarda la linea en lista de palabras
+			seccion=palabras[2]#saca la palabra q corresponde al nomre de seccion 
+			
+			if re.search('distance:([0-9.]+)', linea) :#extrae los numeros que estan despues de distance:
+				progresiva = re.findall('distance:([0-9.]+)', linea)
+			elif re.search('distance:\s+([0-9.]+)', linea):
+				progresiva = re.findall('distance:\s+([0-9.]+)', linea)
+
+			if seccion not in secciones: #fijate si esa seccion ya esta en la lista// esto esta en el libro:
+				secciones.append(seccion) #agrega seccion a la lista	
+				km.append(progresiva) #agrega la progresiva de esa CS a la lista Km 
+			else: 
+				i.append(contador) #agrega a una lista el valor del contador(numero de linea)
+		
+		if linea.find('difference of control-points:') != -1 :
+			f.append(contador) #agrega a una lista el valor del contador (numero de linea)
+		if linea.find('level of thalweg =') != -1 :
+			palabras=linea.split()
+			t=palabras[4]
+			talweg.append(t)
+
+	CSgeom.close()		
+			
+	dftw=pd.DataFrame(columns=['Progresiva','Nombre CS', 'Talweg'])#crear un df con esas columnas.
+
+	#extraer los datos del archivo.dat con los limites definidos por las lineas del inicio y fin de "tabla de datos", extraerlo en un dataframe y guardarlo en un txt para cada seccion.
+	CSgeom2 = archivo1 #como voy a usar pandas para abrirlo con read csv, solo guardo el nombre en una variable. 
+	for x in range(len(i)): #usar un contador desde cero hasta longitud de i.
+		inicial=i[x]+6	#inicio del df
+		resta=(contador-f[x]+1)#fin del df
+		columns=['nr','elevat.','area','ared','conveyance (K)','width','Hperimeter ' ,'beta'] 
+		df=pd.read_csv(CSgeom2, sep='\s+', header=None,names=columns, skiprows= (inicial), skipfooter=(resta))	#extrae cntenido del archivo segun los limites skiprow y skipfooter 
+		df.to_csv(rutaC+secciones[x]+'.txt',sep=',') #guardo el archivo segun seccion
+		
+		#armo el archivo que va a contener los datos del talwey
+		dftw = dftw.append({'Progresiva':km[x],'Nombre CS': secciones[x], 'Talweg':talweg[x]}, ignore_index=True) #agrego los datos de las listas talweg y secionesa al df con formato {columna: variable[posicion], }
+
+	dftw['Progresiva'] = dftw['Progresiva'].map(lambda x: str(x)[:-2]) #quitar los ultimos dos digitos de los elementos de df[col]
+	dftw['Progresiva'] = dftw['Progresiva'].map(lambda x: str(x)[2:]) #quitar los primeros dos digitos de los elementos de df[col]
+
+	dftw.to_csv(rutaB+'talweg.txt',sep=',') #guardo el archivo
+
+	#---------------------------------------------------------------------------------------------
+		#genera archivo con WSE, Q, y otras salidas del modelo 
+
+
+	df=pd.DataFrame(columns=['seccion','z','Q','A', 'e', 'F', 'v', 'S', 'h', 'b'])#crear un df con esas columnas.
+
+	#abrir archivo
+	CScaract =open(ruta+'MPz_all.dat') #es necesario usar el open para abrir el archivo en python
+	#extraer datos de la fila en donde esta 'cross_section->'
+	for linea in CScaract:
+		linea = linea.rstrip() #elmina espacios al inicio y al final de la linea
+		if linea.find('cross_section->') != -1 : #find: si encuentra la expresion devuelve 1, sino -1.
+			palabras = linea.split() #guarda la linea en lista de palabras
+			secciones=palabras[2:]#guardar datos una listas, por ejemplo secciones=[], previamente creada
+	#sacarle las primeras 2 filas y guardar el archivo en un df. 
+	def extraecol(letra):
+		archivo=ruta+'MP'+(letra)+'_all.dat'
+		#archivo='MPz_all.dat'
+		df0 = pd.read_csv(archivo,sep='\s+',skiprows =2,header=None)
+		del df0[0] #borrar col
+		salida = df0.iloc[-restaSEG]#tomar la ultima fila guardarla en una lista. ////////////////////////////#no tiene que ser la última fila. sino la que de valores más altos. (buscar linea 6311-hacer resta7324o 6915) 
+		return salida
+		
+	dfz= extraecol ('z') 
+	dfQ= extraecol ('Q')
+	dfA= extraecol ('A')
+	#dfs= extraecol ('S')
+	dfe =extraecol ('e')
+	dfF =extraecol ('F')
+	dfv =extraecol ('v')
+	dfh =extraecol ('h')
+	dfb =extraecol ('b')
+	#print (type(dfuna))
+	#dfuna.type()
+	#df(letra)= variable 
+
+	for x in range(len(secciones)): #usar un contador desde cero hasta longitud de i.
+		#armo el archivo que va a contener los datos d
+		df= df.append({'seccion':secciones[x],'z':dfz[x+1],'Q':dfQ[x+1], 'A':dfA[x+1], 'e':dfe[x+1],'F':dfF[x+1], 'v':dfv[x+1], 'h':dfh[x+1], 'b':dfb[x+1]}, ignore_index=True) 
+	df.to_csv(rutaB+'datos_UltimoPaso.txt',sep=',') #guardo el archivo
+
+	#------------------------------------------------------------------------------
+
+		#crear archivo de archivos de CS.
+
+	geom=pd.DataFrame(columns=['seccion','elevat','area','ared','conveyance (K)','width','Hperimeter' ,'beta'])#crear un df con esas columnas.
+	for seccion in secciones:# recorrer ese listado de secciones con un loop 
+		dfg = pd.read_csv(rutaC+(seccion)+'.txt',sep=',',skiprows =1, header=None) #abrir archivo con seccion.txt
+		del dfg[0] #borrar col
+		del dfg[1] #borrar col
+		salida = dfg.iloc[-1]#tomar la ultima fila guardarla en una lista. 
+		geom= geom.append({'seccion':seccion,'elevat':salida[2],'area':salida[3],'ared':salida[4], 'conveyance (K)':salida[5], 'width':salida[6],'Hperimeter':salida[7], 'beta':salida[8]}, ignore_index=True) 
+
+	geom.to_csv(rutaB+'geom.txt',sep=',') #guardo el archivo
+
+	#------------------------------------------------------------------------------
+
+		#unificar archivos generados. 
+
+	#abrir el archivo de talweg
+	archivo =rutaB+'talweg.txt'
+	df = pd.read_csv(archivo,sep=',',header=0)
+
+	df.set_index(df['Nombre CS'], inplace=True) #pasar al indice 
+	del df['Nombre CS'] #borrar col
+	df.index.rename('Nombre CS', inplace=True) #renombrar indice
+	del df['Unnamed: 0'] #borrar col
+
+
+
+	#abrir el archivo de datos
+	datos = pd.read_csv(rutaB+'datos_UltimoPaso.txt',sep=',',header=0)
+	del datos['Unnamed: 0'] #borrar col
+	datos.set_index(datos['seccion'], inplace=True) #pasar al indice 
+	del datos['seccion'] #borrar col
+	datos.index.rename('seccion', inplace=True) #renombrar indice
+
+	#abrir el archivo de datos
+	datos2 = pd.read_csv(rutaB+'geom.txt',sep=',',header=0)
+	del datos2['Unnamed: 0'] #borrar col
+	datos2.set_index(datos2['seccion'], inplace=True) #pasar al indice 
+	del datos2['seccion'] #borrar col
+	datos2.index.rename('seccion', inplace=True) #renombrar indice
+
+
+	#unir por las secciones el archivo datos con el archivo talweg  
+	df= df.join(datos, how = 'outer')
+	df= df.join(datos2, how = 'outer')
+	#falta unir con el de caracteristicas geometricas. 
+
+	# #pasar la columna progresiva al indice
+	# df.set_index(df['Progresiva'], inplace=True) #pasar al indice 
+	# del df['Progresiva'] #borrar col
+	# df.index.rename('Progresiva', inplace=True) #renombrar indice
+
+	df.index.rename('Nombre CS', inplace=True) #renombrar indice
+	df.to_csv(rutaB+'completo'+str(restaSEG)+'.txt',sep=' ')#guardar
+	restaSEG= restaSEG-25
+
+#--------------------------------------------------------------------------------------
+	#Generar txt con valores de progresiva y cota (nube.txt) y limdesborde.txt con datos de fullbank de cada CS
+
+CS_pre = ruta+'SecParanaPalmasV5.bmg'
+CS = open(CS_pre,'r') #Abre el plan para leerlo
+
+
+#primero encontrar distance_coord           = 
+Nube=pd.DataFrame(columns=['y','z'])
+fullb=pd.DataFrame(columns=['x','y','z'])
+
+print('iniciando extraccion de nube,fullbank y batimetrias')
+J1 = 0
+I1 = 0
+a=0
+b=0
+for line in CS:	#Lee linea por linea 
+	line = line.strip()
+	if line.find ('name')!=-1 :#name
+		
+		sec=line[27:] #guarda en sec lo que esta en la linea despues de la posicion 27
+		print (sec)
+		batim=pd.DataFrame(columns=['x','y','z'])
+		
+	if line.find ('distance_coord')!=-1 :
+		y=float(line[27:])
+	if line.find('}') != -1 :
+		I1 = 0	
+		batim.to_csv(rutaB+'batim/'+sec+'_batim.txt',sep=' ', index=False)#guardar
+	if line == ')':
+		J1 = 0
+	if J1 == 1:
+		ab = line[25:49]
+		ab=ab.split(',')
+		a=ab[0]
+		a = a.strip() #le saca los espacios a a
+		a = a.strip('=')
+		a = a.strip(')')
+		a = a.strip('(')
+		a = a.strip()
+		a=float(a)
+		b=ab[1]
+		b = b.strip(')')
+		b = b.strip('(')
+		b=float(b)
+	if I1 == 1:
+		if line != ')':
+			lineb = line.strip('(') #le saca el ( a la linea
+			lineb = lineb.strip('),')
+			lineb = lineb.strip(')')
+			xz = lineb.split(',')
+			x = float(xz[0])
+			z = float(xz[1])
+			Nube= Nube.append({'y':y*1000,'z':z}, ignore_index=True) 
+			batim=batim.append({'x':x,'y':y*1000,'z':z}, ignore_index=True)
+			if a == x:
+				fullb=fullb.append({'x':x,'y':y*1000,'z':z}, ignore_index=True)
+			if b == x:
+				fullb=fullb.append({'x':x,'y':y*1000,'z':z}, ignore_index=True)
+	if line.find('node_coords') != -1 :
+		I1 = 1
+	if line.find('friction_ranges') != -1 :
+		J1 = 1
+		
+Nube.to_csv(rutaB+'nube.txt',sep=' ')#guardar
+print ('finalizo nube')
+fullb.to_csv(rutaB+'fullbank.txt',sep=' ')#guardar
+print ('finalizo fullbank')
+
+CS.close()
+
+# os.remove(CS_pre)	#Elimina el plan viejo
+# os.rename(CS_temp,CS_pre)	#Cambia el nombre del archivo temporal	
